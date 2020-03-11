@@ -18,7 +18,8 @@ export default function(opt) {
     const landingPage = opt.landing || 'https://localtunnel.github.io/www/';
 
     function GetClientIdFromHostname(hostname) {
-        return myTldjs.getSubdomain(hostname);
+        const sub = myTldjs.getSubdomain(hostname).split('.');
+        return sub[sub.length-1];
     }
 
     const manager = new ClientManager(opt);
@@ -82,17 +83,18 @@ export default function(opt) {
     // anything after the / path is a request for a specific client name
     // This is a backwards compat feature
     app.use(async (ctx, next) => {
-        const parts = ctx.request.path.split('/');
+        const parts = ctx.request.path.replace(/^\/|\/$/g, '').split('/');
+        debug("Parts: %", parts)
 
         // any request with several layers of paths is not allowed
         // rejects /foo/bar
         // allow /foo
-        if (parts.length !== 2) {
+        if (parts.length !== 1) {
             await next();
             return;
         }
 
-        const reqId = parts[1];
+        const reqId = parts[0];
 
         // limit requested hostnames to 63 characters
         if (! /^(?:[a-z0-9][a-z0-9\-]{4,63}[a-z0-9]|[a-z0-9]{4,63})$/.test(reqId)) {
@@ -126,12 +128,14 @@ export default function(opt) {
             return;
         }
 
+        debug('Retrieving clientId: %s', hostname)
         const clientId = GetClientIdFromHostname(hostname);
         if (!clientId) {
             appCallback(req, res);
             return;
         }
 
+        debug('Retrieving client: %s', clientId)
         const client = manager.getClient(clientId);
         if (!client) {
             res.statusCode = 404;
